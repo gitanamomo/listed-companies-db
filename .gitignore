@@ -29,3 +29,4 @@ dashboard_offline.html
 node_modules/
 .venv/
 bj_stocks.json
+.obsidian/
