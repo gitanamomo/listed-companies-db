@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A股全量检索看板 · 5,535家</title>
+<style>
+:root { --bg:#f4f4f6; --surface:#fff; --border:#e5e5ea; --text:#1d1d1f; --text2:#6e6e73; --accent:#0071e3; --green:#34c759; --orange:#ff9500; --radius:6px; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; background:var(--bg); color:var(--text); line-height:1.4; -webkit-font-smoothing:antialiased; }
+.toolbar { background:var(--surface); border-bottom:1px solid var(--border); padding:12px 24px; position:sticky; top:0; z-index:100; }
+.toolbar-row { max-width:1600px; margin:0 auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.toolbar input[type=text] { flex:1; min-width:200px; font-size:14px; padding:9px 14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); outline:none; }
+.toolbar input[type=text]:focus { border-color:var(--accent); }
+.toolbar select { font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); color:var(--text); outline:none; max-width:150px; }
+.toolbar select:focus { border-color:var(--accent); }
+.btn { font-size:12px; padding:7px 14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); cursor:pointer; white-space:nowrap; }
+.btn:hover { background:#f0f0f5; }
+.btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn.primary:hover { opacity:.85; }
+.view-toggle { display:flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.view-toggle button { padding:6px 12px; border:none; background:var(--surface); cursor:pointer; font-size:12px; }
+.view-toggle button.active { background:var(--accent); color:#fff; }
+.summary { font-size:12px; color:var(--text2); white-space:nowrap; }
+.table-wrap { max-width:1600px; margin:0 auto; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead { position:sticky; top:95px; z-index:50; }
+th { background:#f9f9fb; padding:10px 12px; text-align:left; font-weight:600; border-bottom:2px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; }
+th:hover { background:#eeeef2; }
+th.sorted::after { content:' ▾'; font-size:10px; }
+th.sorted.asc::after { content:' ▴'; }
+td { padding:8px 12px; border-bottom:1px solid var(--border); }
+tr:hover td { background:#f5f5fa; }
+.card-grid { max-width:1600px; margin:0 auto; padding:12px; display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:10px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
+.card.curated { border-left:3px solid var(--accent); }
+.card .name { font-size:15px; font-weight:600; }
+.card .code { font-size:12px; color:var(--text2); margin-left:8px; }
+.card .row { font-size:12px; color:var(--text2); margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; }
+.tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:3px; }
+.tag.curated { background:#e8f0fe; color:var(--accent); }
+.tag.specific { background:#e8f8ed; color:var(--green); }
+.tag.direction { background:#fff4e5; color:var(--orange); }
+.stats { max-width:1600px; margin:10px auto; padding:0 24px; display:flex; gap:16px; flex-wrap:wrap; }
+.stat { font-size:13px; color:var(--text2); }
+.stat b { color:var(--text); }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="toolbar-row">
+    <input type="text" id="search" placeholder="🔍 搜索代码、名称、行业、城市..." autofocus oninput="filter()">
+    <select id="fMarket" onchange="filter()"><option value="">全部市场</option></select>
+    <select id="fBoard" onchange="filter()"><option value="">全部板块</option></select>
+    <select id="fIndustry" onchange="filter()"><option value="">全部行业</option></select>
+    <select id="fCity" onchange="filter()"><option value="">全部城市</option></select>
+    <select id="fCurated" onchange="filter()"><option value="">全部类型</option><option value="1">精选公司</option></select>
+    <button class="btn primary" onclick="exportCSV()">📥 导出CSV</button>
+    <div class="view-toggle">
+      <button id="btnTable" class="active" onclick="setView('table')">📋 表格</button>
+      <button id="btnCard" onclick="setView('card')">🃏 卡片</button>
+    </div>
+    <span class="summary" id="summary"></span>
+  </div>
+</div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap hidden" id="tableView"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+<div class="card-grid hidden" id="cardView"></div>
+
+<script>
+let DATA = [];
+let filtered = [];
+let view = 'table';
+let sortCol = -1;
+let sortAsc = true;
+
+async function init() {
+  try {
+    const r = await fetch('search_data.json');
+    DATA = await r.json();
+  } catch(e) {
+    DATA = [];
+    document.getElementById('summary').textContent = '⚠️ 请运行 python3 refresh.py 先生成 search_data.json';
+    return;
+  }
+  const mkOpt = (id, fn) => {
+    const vals = [...new Set(DATA.map(fn).filter(Boolean))].sort();
+    const s = document.getElementById(id);
+    vals.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o); });
+  };
+  mkOpt('fMarket', c => c.market);
+  mkOpt('fBoard', c => c.board);
+  mkOpt('fIndustry', c => c.industry);
+  mkOpt('fCity', c => c.city);
+  filter();
+}
+
+function filter() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const mkt = document.getElementById('fMarket').value;
+  const brd = document.getElementById('fBoard').value;
+  const ind = document.getElementById('fIndustry').value;
+  const cty = document.getElementById('fCity').value;
+  const cur = document.getElementById('fCurated').value;
+  filtered = DATA.filter(c => {
+    if (mkt && c.market !== mkt) return false;
+    if (brd && c.board !== brd) return false;
+    if (ind && c.industry !== ind) return false;
+    if (cty && c.city !== cty) return false;
+    if (cur === '1' && !c.curated) return false;
+    if (q && !(c.name.includes(q) || c.code.includes(q) || (c.industry||'').includes(q) || (c.city||'').includes(q))) return false;
+    return true;
+  });
+  document.getElementById('summary').textContent = filtered.length.toLocaleString() + ' / ' + DATA.length.toLocaleString() + ' 家';
+  renderStats();
+  if (view === 'table') renderTable();
+  else renderCards();
+}
+
+function renderStats() {
+  const curated = filtered.filter(c => c.curated).length;
+  const markets = [...new Set(filtered.map(c => c.market).filter(Boolean))];
+  const boards = [...new Set(filtered.map(c => c.board).filter(Boolean))];
+  const industries = new Set(filtered.map(c => c.industry).filter(Boolean));
+  document.getElementById('stats').innerHTML =
+    '<div class="stat">精选 <b>'+curated+'</b></div>' +
+    '<div class="stat">市场 <b>'+markets.join('+')+'</b></div>' +
+    '<div class="stat">板块 <b>'+boards.join('+')+'</b></div>' +
+    '<div class="stat">行业 <b>'+industries.size+' 个</b></div>';
+}
+
+function sort(col) {
+  if (sortCol === col) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
+  renderTable();
+}
+
+function renderTable() {
+  const keys = ['code','name','market','board','industry','city','date','match'];
+  const labels = ['代码','名称','市场','板块','行业','城市','上市日','匹配'];
+  let th = '';
+  keys.forEach((k,i) => {
+    const cls = sortCol === i ? (sortAsc ? 'sorted asc' : 'sorted') : '';
+    th += '<th class="'+cls+'" onclick="sort('+i+')">'+labels[i]+'</th>';
+  });
+  document.getElementById('thead').innerHTML = '<tr>'+th+'</tr>';
+  let sorted = [...filtered];
+  if (sortCol >= 0) {
+    const k = keys[sortCol];
+    sorted.sort((a,b) => {
+      const va = (a[k]||'').toString(), vb = (b[k]||'').toString();
+      return sortAsc ? va.localeCompare(vb, 'zh') : vb.localeCompare(va, 'zh');
+    });
+  }
+  document.getElementById('tbody').innerHTML = sorted.map(c => {
+    let extra = '';
+    if (c.curated) extra += '<span class="tag curated">精选</span>';
+    if (c.match === '具体对标') extra += '<span class="tag specific">具体</span>';
+    else if (c.match === '方向匹配') extra += '<span class="tag direction">方向</span>';
+    return '<tr>' +
+      '<td>'+c.code+'</td><td>'+c.name+extra+'</td><td>'+c.market+'</td><td>'+c.board+'</td>' +
+      '<td>'+(c.industry||'-')+'</td><td>'+(c.city||'-')+'</td>' +
+      '<td>'+(c.date||'-')+'</td><td>'+(c.match||'-')+'</td></tr>';
+  }).join('');
+}
+
+function renderCards() {
+  document.getElementById('cardView').innerHTML = filtered.slice(0,500).map(c => {
+    return '<div class="card'+(c.curated?' curated':'')+'">' +
+      '<div><span class="name">'+c.name+'</span><span class="code">'+c.code+'</span></div>' +
+      '<div class="row">' +
+        '<span>🏢 '+c.market+' · '+c.board+'</span>' +
+        '<span>🏭 '+(c.industry||'?')+'</span>' +
+        '<span>📍 '+(c.city||'?')+'</span>' +
+      '</div>' +
+      (c.match ? '<div class="row"><span class="tag '+(c.match==='具体对标'?'specific':'direction')+'">'+c.match+'</span> '+(c.wsw||'')+'</div>' : '') +
+    '</div>';
+  }).join('') + (filtered.length > 500 ? '<p style="text-align:center;color:var(--text2);padding:20px;">仅显示前 500 条，剩余 '+(filtered.length-500).toLocaleString()+' 条请切换表格视图或缩小筛选范围</p>' : '');
+}
+
+function setView(v) {
+  view = v;
+  document.getElementById('btnTable').classList.toggle('active', v==='table');
+  document.getElementById('btnCard').classList.toggle('active', v==='card');
+  document.getElementById('tableView').classList.toggle('hidden', v!=='table');
+  document.getElementById('cardView').classList.toggle('hidden', v!=='card');
+  filter();
+}
+
+function exportCSV() {
+  const hdr = '代码,名称,市场,板块,行业,城市,上市日期,匹配类型,十五五方向,精选\n';
+  const rows = filtered.map(c => [
+    c.code, c.name, c.market, c.board, (c.industry||''), (c.city||''),
+    (c.date||''), (c.match||''), (c.wsw||'').replace(/,/g,'，'), c.curated?'是':'否'
+  ].map(v => '"'+v+'"').join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+hdr+rows], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'A股检索结果_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+
+init();
+</script>
+</body>
+</html>
