@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A股上市公司全量看板 · 含7城十五五精选</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0a0e14;
+  --bg-secondary: #12161e;
+  --bg-card: #181d27;
+  --bg-card-hover: #1e2432;
+  --border: #252b36;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #5c6670;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-orange: #d2991d;
+  --accent-red: #f85149;
+  --accent-purple: #a371f7;
+  --accent-cyan: #39d2b0;
+  --specific-green: #1a3a2a;
+  --direction-yellow: #3a2e0a;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; line-height: 1.5;
+}
+.app-header {
+  background: linear-gradient(135deg, #12161e 0%, #1a1f2e 50%, #12161e 100%);
+  border-bottom: 1px solid var(--border); padding: 0 32px; height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100; backdrop-filter: blur(12px);
+}
+.app-header h1 {
+  font-size: 20px; font-weight: 700;
+  background: linear-gradient(135deg, #58a6ff, #a371f7);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.header-right { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+.header-badge { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; }
+.container { max-width: 1440px; margin: 0 auto; padding: 24px 32px; }
+
+/* KPI */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.kpi-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px 22px; cursor: pointer; transition: all 0.2s;
+}
+.kpi-card:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
+.kpi-card .kpi-value { font-size: 32px; font-weight: 800; margin-bottom: 4px; line-height: 1; }
+.kpi-card .kpi-label { font-size: 13px; color: var(--text-secondary); }
+.kpi-card.accent-blue .kpi-value { color: var(--accent-blue); }
+.kpi-card.accent-green .kpi-value { color: var(--accent-green); }
+.kpi-card.accent-purple .kpi-value { color: var(--accent-purple); }
+.kpi-card.accent-cyan .kpi-value { color: var(--accent-cyan); }
+.kpi-card.accent-orange .kpi-value { color: var(--accent-orange); }
+.kpi-card.accent-red .kpi-value { color: var(--accent-red); }
+
+/* Grid */
+.main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+.panel-body { padding: 16px; }
+.chart-container { width: 100%; height: 320px; }
+.panel-full { grid-column: 1 / -1; }
+
+/* Tabs */
+.city-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
+.city-tab {
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+  font-size: 12px; transition: all 0.2s; white-space: nowrap;
+}
+.city-tab:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.city-tab.active { background: linear-gradient(135deg, #1a3a5c, #1e2a4a); border-color: var(--accent-blue); color: var(--accent-blue); font-weight: 600; }
+
+/* Table */
+.table-toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+.search-input, .filter-select {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 12px; color: var(--text-primary); font-size: 12px; outline: none; transition: border-color 0.2s;
+}
+.search-input { width: 220px; }
+.search-input:focus { border-color: var(--accent-blue); }
+.search-input::placeholder { color: var(--text-muted); }
+.filter-select { cursor: pointer; }
+.count-badge { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+.count-badge span { color: var(--accent-blue); font-weight: 600; }
+.pagination { display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+.pagination button {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-secondary); padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+.pagination button:hover:not(:disabled) { color: var(--text-primary); border-color: var(--accent-blue); }
+.pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+.page-info { font-size: 12px; color: var(--text-muted); }
+
+.table-wrapper { overflow-x: auto; max-height: 600px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead { position: sticky; top: 0; z-index: 10; }
+thead th {
+  background: var(--bg-secondary); padding: 10px 12px; text-align: left;
+  font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+thead th:hover { color: var(--text-primary); }
+tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr { transition: background 0.15s; }
+tbody tr:hover { background: var(--bg-card-hover); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.badge-specific { background: var(--specific-green); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.3); }
+.badge-direction { background: var(--direction-yellow); color: var(--accent-orange); border: 1px solid rgba(210,153,29,0.3); }
+.badge-city { background: rgba(88,166,255,0.12); color: var(--accent-blue); border: 1px solid rgba(88,166,255,0.25); }
+.badge-star { background: rgba(163,113,247,0.12); color: var(--accent-purple); border: 1px solid rgba(163,113,247,0.25); }
+.badge-gem { background: rgba(57,210,176,0.12); color: var(--accent-cyan); border: 1px solid rgba(57,210,176,0.25); }
+.badge-board { background: rgba(139,148,158,0.12); color: var(--text-secondary); border: 1px solid rgba(139,148,158,0.25); }
+.company-link { color: var(--accent-blue); text-decoration: none; font-weight: 500; }
+.company-link:hover { text-decoration: underline; }
+.website-link { color: var(--text-muted); text-decoration: none; font-size: 11px; }
+.website-link:hover { color: var(--accent-cyan); }
+
+.priority-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.priority-tag { padding: 4px 10px; border-radius: 14px; background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.2); font-size: 11px; color: var(--accent-blue); white-space: nowrap; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 900px) {
+  .main-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .container { padding: 16px; }
+  .app-header { padding: 0 16px; }
+}
+
+.footer-bar { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 24px; }
+.pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); margin-right: 6px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>A股上市公司全量看板 · 含7城十五五精选</h1>
+  <div class="header-right">
+    <span class="pulse"></span>数据更新：<span id="update-time">--</span>
+    <span class="header-badge">十五五 2026-2030</span>
+    <span class="header-badge" style="background:rgba(63,185,80,0.1);border-color:rgba(63,185,80,0.3)">全量A股</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpi-grid">
+    <div class="kpi-card accent-blue">
+      <div class="kpi-value" id="kpi-total">--</div>
+      <div class="kpi-label">A股上市公司总数</div>
+    </div>
+    <div class="kpi-card accent-cyan">
+      <div class="kpi-value" id="kpi-main">--</div>
+      <div class="kpi-label">主板</div>
+    </div>
+    <div class="kpi-card accent-purple">
+      <div class="kpi-value" id="kpi-star">--</div>
+      <div class="kpi-label">科创板</div>
+    </div>
+    <div class="kpi-card accent-green">
+      <div class="kpi-value" id="kpi-gem">--</div>
+      <div class="kpi-label">创业板</div>
+    </div>
+    <div class="kpi-card accent-orange">
+      <div class="kpi-value" id="kpi-curated">--</div>
+      <div class="kpi-label">⭐ 十五五精选</div>
+    </div>
+    <div class="kpi-card accent-red">
+      <div class="kpi-value" id="kpi-specific">--</div>
+      <div class="kpi-label">🎯 具体对标</div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1 -->
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-header">🏢 板块分布</div>
+      <div class="panel-body"><div class="chart-container" id="chart-board-pie"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">🏛 交易所分布</div>
+      <div class="panel-body"><div class="chart-container" id="chart-market-pie"></div></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2 -->
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-header">📈 7城精选分布 & 十五五匹配</div>
+      <div class="panel-body"><div class="chart-container" id="chart-city-bar"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">🏭 行业分布 TOP15（深交所SZS数据）</div>
+      <div class="panel-body"><div class="chart-container" id="chart-industry-pie"></div></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 3 -->
+  <div class="main-grid">
+    <div class="panel">
+      <div class="panel-header">🎯 各城市十五五匹配比例</div>
+      <div class="panel-body"><div class="chart-container" id="chart-match"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">📋 各城市十五五核心方向</div>
+      <div class="panel-body" id="priority-panel" style="max-height:320px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="panel" style="margin-bottom:24px">
+    <div class="panel-header">
+      📋 公司明细查询
+      <span style="font-size:12px;color:var(--text-secondary)">支持搜索、筛选、排序、分页 | 共 <span id="table-total-hint" style="color:var(--accent-blue)">--</span> 条</span>
+    </div>
+    <div class="panel-body">
+      <div class="city-tabs" id="city-tabs">
+        <button class="city-tab active" data-city="all">🌐 全部</button>
+      </div>
+
+      <div class="table-toolbar">
+        <input type="text" class="search-input" id="search-input" placeholder="🔍 搜索代码/名称/行业/匹配...">
+        <select class="filter-select" id="filter-board">
+          <option value="all">全部板块</option>
+          <option value="主板">主板</option>
+          <option value="科创板">科创板</option>
+          <option value="创业板">创业板</option>
+          <option value="北交所">北交所</option>
+        </select>
+        <select class="filter-select" id="filter-market">
+          <option value="all">全部交易所</option>
+          <option value="上交所">上交所</option>
+          <option value="深交所">深交所</option>
+        </select>
+        <select class="filter-select" id="filter-industry">
+          <option value="all">全部行业</option>
+        </select>
+        <select class="filter-select" id="filter-match">
+          <option value="all">全部匹配</option>
+          <option value="具体对标">🎯 具体对标</option>
+          <option value="方向匹配">🧭 方向匹配</option>
+        </select>
+        <select class="filter-select" id="filter-curated">
+          <option value="all">全部公司</option>
+          <option value="curated">⭐ 仅精选</option>
+          <option value="matched">🏷 有匹配</option>
+        </select>
+        <div class="count-badge">显示 <span id="count-display">0</span> 条</div>
+        <div class="pagination">
+          <button id="btn-prev" disabled>◀</button>
+          <span class="page-info" id="page-info">第 1/1 页</span>
+          <button id="btn-next" disabled>▶</button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="stock_code">代码 ↕</th>
+              <th data-sort="stock_name">公司名称 ↕</th>
+              <th>板块</th>
+              <th data-sort="industry">行业 ↕</th>
+              <th data-sort="city">城市 ↕</th>
+              <th data-sort="listing_date">上市日期 ↕</th>
+              <th>十五五匹配说明</th>
+              <th data-sort="match_type">匹配类型 ↕</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bar">
+    数据来源：沪深北交易所公开信息 · 各城市十五五规划纲要(2026.5发布) · baostock证券宝 &nbsp;|&nbsp;
+    全量A股5,208只 · 精选7城193家 &nbsp;|&nbsp;
+    <span id="footer-update">--</span>
+  </div>
+</div>
+
+<script>
+let allData = { companies: [], stats: {} };
+let currentCity = 'all';
+let currentPage = 1;
+let sortCol = null;
+let sortDir = 1;
+
+async function loadData() {
+  try {
+    const resp = await fetch('dashboard_data.json');
+    allData = await resp.json();
+    renderAll();
+  } catch(e) {
+    console.error('Failed to load data:', e);
+    if (typeof INLINE_DATA !== 'undefined') { allData = INLINE_DATA; renderAll(); }
+  }
+}
+
+function renderKPIs() {
+  const active = allData.companies.filter(c => c.status === 'active');
+  const boards = {主板:0, 科创板:0, 创业板:0, 北交所:0};
+  active.forEach(c => { if (boards[c.board] !== undefined) boards[c.board]++; });
+  const curated = active.filter(c => c.is_curated == 1).length;
+  const specific = active.filter(c => c.match_type === '具体对标').length;
+
+  document.getElementById('kpi-total').textContent = active.length;
+  document.getElementById('kpi-main').textContent = boards['主板'];
+  document.getElementById('kpi-star').textContent = boards['科创板'];
+  document.getElementById('kpi-gem').textContent = boards['创业板'];
+  document.getElementById('kpi-curated').textContent = curated;
+  document.getElementById('kpi-specific').textContent = specific;
+  document.getElementById('table-total-hint').textContent = active.length;
+}
+
+function renderCharts() {
+  const active = allData.companies.filter(c => c.status === 'active');
+
+  // Board pie
+  const boardMap = {};
+  active.forEach(c => { boardMap[c.board] = (boardMap[c.board] || 0) + 1; });
+  const boardData = Object.entries(boardMap).map(([name, value]) => ({ name: name||'未知', value }));
+
+  const boardChart = echarts.init(document.getElementById('chart-board-pie'));
+  boardChart.setOption({
+    tooltip: { trigger: 'item', backgroundColor: '#1a1f2e', borderColor: '#252b36', textStyle: {color: '#e6edf3'} },
+    legend: { bottom: 0, textStyle: { color: '#8b949e', fontSize: 11 } },
+    series: [{
+      type: 'pie', radius: ['40%', '70%'], center: ['50%', '48%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#12161e', borderWidth: 3 },
+      label: { color: '#8b949e', fontSize: 11, formatter: '{b}\n{c}家 ({d}%)' },
+      data: boardData,
+      color: ['#58a6ff','#a371f7','#39d2b0','#d2991d'],
+    }],
+  });
+
+  // Market pie
+  const marketMap = {};
+  active.forEach(c => { marketMap[c.market] = (marketMap[c.market] || 0) + 1; });
+  const marketData = Object.entries(marketMap).map(([name, value]) => ({ name: name||'未知', value }));
+
+  const marketChart = echarts.init(document.getElementById('chart-market-pie'));
+  marketChart.setOption({
+    tooltip: { trigger: 'item', backgroundColor: '#1a1f2e', borderColor: '#252b36', textStyle: {color: '#e6edf3'} },
+    legend: { bottom: 0, textStyle: { color: '#8b949e', fontSize: 11 } },
+    series: [{
+      type: 'pie', radius: ['40%', '70%'], center: ['50%', '48%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#12161e', borderWidth: 3 },
+      label: { color: '#8b949e', fontSize: 11, formatter: '{b}\n{c}家 ({d}%)' },
+      data: marketData,
+      color: ['#f0883e','#58a6ff','#3fb950'],
+    }],
+  });
+
+  // City bar chart
+  const cities = ['深圳','广州','佛山','珠海','福州','厦门','长沙'];
+  const cityData = cities.map(city => {
+    const cc = active.filter(c => c.city === city);
+    return {
+      city, total: cc.length,
+      specific: cc.filter(c => c.match_type === '具体对标').length,
+      direction: cc.filter(c => c.match_type === '方向匹配').length,
+    };
+  });
+
+  const cityChart = echarts.init(document.getElementById('chart-city-bar'));
+  cityChart.setOption({
+    tooltip: { trigger: 'axis', backgroundColor: '#1a1f2e', borderColor: '#252b36', textStyle: {color: '#e6edf3'} },
+    legend: { bottom: 0, textStyle: { color: '#8b949e', fontSize: 12 }, data: ['具体对标', '方向匹配', '其他精选'] },
+    grid: { left: 40, right: 20, top: 10, bottom: 40 },
+    xAxis: {
+      type: 'category', data: cityData.map(d => d.city),
+      axisLabel: { color: '#8b949e', fontSize: 12 },
+      axisLine: { lineStyle: { color: '#252b36' } },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#8b949e' },
+      splitLine: { lineStyle: { color: '#252b36' } },
+    },
+    series: [
+      {
+        name: '具体对标', type: 'bar', stack: 'total',
+        data: cityData.map(d => d.specific),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#3fb950'},{offset:1,color:'#1a6b2a'}]), borderRadius: [4,4,0,0] },
+        barWidth: 28, label: { show: true, position: 'inside', color: '#fff', fontSize: 11, fontWeight: 'bold' },
+      },
+      {
+        name: '方向匹配', type: 'bar', stack: 'total',
+        data: cityData.map(d => d.direction),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#d2991d'},{offset:1,color:'#6b4e0a'}]), borderRadius: [4,4,0,0] },
+        barWidth: 28, label: { show: true, position: 'inside', color: '#fff', fontSize: 11, fontWeight: 'bold' },
+      },
+      {
+        name: '其他精选', type: 'bar', stack: 'total',
+        data: cityData.map(d => d.total - d.specific - d.direction),
+        itemStyle: { color: '#2a3040', borderRadius: [4,4,0,0] },
+        barWidth: 28,
+      },
+    ],
+  });
+
+  // Industry pie (only SZSE data which has industry field)
+  const industryMap = {};
+  active.forEach(c => { if (c.industry) { industryMap[c.industry] = (industryMap[c.industry]||0)+1; } });
+  const industryData = Object.entries(industryMap).sort((a,b) => b[1]-a[1]).slice(0,15).map(([n,v]) => ({name:n,value:v}));
+
+  const indChart = echarts.init(document.getElementById('chart-industry-pie'));
+  indChart.setOption({
+    tooltip: { trigger: 'item', backgroundColor: '#1a1f2e', borderColor: '#252b36', textStyle: {color: '#e6edf3'} },
+    series: [{
+      type: 'pie', radius: ['45%','75%'], center: ['50%','52%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#12161e', borderWidth: 3 },
+      label: { color: '#8b949e', fontSize: 10, formatter: '{b}({c})' },
+      data: industryData,
+      color: ['#58a6ff','#3fb950','#a371f7','#d2991d','#f85149','#39d2b0','#f0883e','#db61a2','#79c0ff','#56d364','#bc8cff','#e3b341','#ff7b72','#8b949e','#6e7681'],
+    }],
+  });
+
+  // Match ratio
+  const matchData = cities.map(city => {
+    const cc = active.filter(c => c.city === city);
+    const spec = cc.filter(c => c.match_type === '具体对标').length;
+    return { city, spec, total: cc.length, ratio: cc.length ? (spec/cc.length*100).toFixed(1) : 0 };
+  });
+
+  const matchChart = echarts.init(document.getElementById('chart-match'));
+  matchChart.setOption({
+    tooltip: { trigger: 'axis', backgroundColor: '#1a1f2e', borderColor: '#252b36', textStyle: {color: '#e6edf3'} },
+    grid: { left: 100, right: 50, top: 10, bottom: 20 },
+    xAxis: { type: 'value', max: 100, axisLabel: { color: '#8b949e', formatter: '{value}%' }, splitLine: { lineStyle: { color: '#252b36' } } },
+    yAxis: { type: 'category', data: matchData.map(d=>d.city).reverse(), axisLabel: { color: '#8b949e', fontSize: 12 }, axisLine: { lineStyle: { color: '#252b36' } } },
+    series: [{
+      type: 'bar',
+      data: matchData.map(d => ({
+        value: d.ratio,
+        itemStyle: { color: new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#1a6b2a'},{offset:1,color:'#3fb950'}]), borderRadius: [0,6,6,0] }
+      })).reverse(),
+      barWidth: 20,
+      label: { show: true, position: 'right', color: '#8b949e', fontSize: 11, formatter: '{c}%' },
+      markLine: { silent: true, data: [{ xAxis: 50, lineStyle: { color: '#f85149', type: 'dashed', width: 1 } }], label: { formatter: '50%', color: '#f85149', fontSize: 10 }, symbol: 'none' }
+    }],
+  });
+
+  // Priority tags
+  const priorities = {
+    '深圳': ['AI终端','低空经济','具身智能机器人','海洋经济','商业航天','半导体与集成电路','新能源汽车','新型储能','高端医疗器械','新一代电子信息'],
+    '广州': ['智能网联与新能源汽车','新型显示','生物医药与健康','绿色石化新材料','AI+/垂模之都','低空经济/空天强市','新能源与储能','智能装备与机器人','半导体集成电路','轨道交通/船舶'],
+    '佛山': ['智能制造/工业机器人','新型电力系统装备','半导体芯片','智能网联汽车','新材料/绿色建材','医药健康','低空经济','绿色氢能','具身智能/生物制造','家电智能化'],
+    '珠海': ['集成电路/RISC-V','生物医药与健康','人工智能全产业链','低空经济','新能源/储能/固态电池','海洋经济','机器人核心部件','新一代信息技术','新材料/电子化学品','智能家电'],
+    '福州': ['数字经济/AI+','海洋经济示范区','光电信息/新型显示','智能汽车','人工智能/机器人','低空装备','新型储能','高性能材料','生物医药','氢能/6G/具身智能'],
+    '厦门': ['电子信息/新型显示','新能源锂电池','半导体(第三代)','人工智能+制造','生物医药与健康','低空经济','新材料','海洋经济/深海空天','氢能/生物制造','高端装备'],
+    '长沙': ['工程机械世界级集群','新能源/智能网联汽车','自主安全计算系统','新材料/先进能源材料','AI应用之城','低空经济/北斗','生物医药/大健康','新能源/动力电池','智能终端/机器人','量子/基因/具身智能'],
+  };
+
+  let pH = '';
+  for (const [city, tags] of Object.entries(priorities)) {
+    pH += `<div style="margin-bottom:12px"><strong style="color:var(--accent-blue);font-size:13px">${city}</strong>`;
+    pH += '<div class="priority-tags">';
+    tags.forEach(t => { pH += `<span class="priority-tag">${t}</span>`; });
+    pH += '</div></div>';
+  }
+  document.getElementById('priority-panel').innerHTML = pH;
+}
+
+// Table
+function renderCityTabs() {
+  const cities = ['深圳','广州','佛山','珠海','福州','厦门','长沙'];
+  const tabsHTML = '<button class="city-tab active" data-city="all">🌐 全部A股</button>' +
+    cities.map(c => `<button class="city-tab" data-city="${c}">⭐ ${c}</button>`).join('');
+  document.getElementById('city-tabs').innerHTML = tabsHTML;
+
+  document.querySelectorAll('.city-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.city-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentCity = tab.dataset.city;
+      currentPage = 1;
+      renderTable();
+    });
+  });
+}
+
+function populateFilters() {
+  const active = allData.companies.filter(c => c.status === 'active');
+  const industries = [...new Set(active.map(c => c.industry).filter(Boolean))].sort();
+
+  const sel = document.getElementById('filter-industry');
+  sel.innerHTML = '<option value="all">全部行业</option>' +
+    industries.map(i => `<option value="${i}">${i}</option>`).join('');
+}
+
+function renderTable() {
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const filterInd = document.getElementById('filter-industry').value;
+  const filterMatch = document.getElementById('filter-match').value;
+  const filterBoard = document.getElementById('filter-board').value;
+  const filterMarket = document.getElementById('filter-market').value;
+  const filterCurated = document.getElementById('filter-curated').value;
+
+  let companies = allData.companies.filter(c => c.status === 'active');
+  if (currentCity !== 'all') companies = companies.filter(c => c.city === currentCity);
+  if (filterInd !== 'all') companies = companies.filter(c => c.industry === filterInd);
+  if (filterMatch !== 'all') companies = companies.filter(c => c.match_type === filterMatch);
+  if (filterBoard !== 'all') companies = companies.filter(c => c.board === filterBoard);
+  if (filterMarket !== 'all') companies = companies.filter(c => c.market === filterMarket);
+  if (filterCurated === 'curated') companies = companies.filter(c => c.is_curated == 1);
+  if (filterCurated === 'matched') companies = companies.filter(c => c.match_type);
+
+  if (search) {
+    companies = companies.filter(c =>
+      c.stock_name.toLowerCase().includes(search) ||
+      c.stock_code.toLowerCase().includes(search) ||
+      (c.main_biz || '').toLowerCase().includes(search) ||
+      (c.industry || '').toLowerCase().includes(search) ||
+      (c.wsw_match || '').toLowerCase().includes(search)
+    );
+  }
+
+  if (sortCol) {
+    companies.sort((a, b) => {
+      const va = (a[sortCol] || '').toString().toLowerCase();
+      const vb = (b[sortCol] || '').toString().toLowerCase();
+      return va.localeCompare(vb) * sortDir;
+    });
+  }
+
+  const pageSize = 50;
+  const totalPages = Math.ceil(companies.length / pageSize);
+  const page = Math.min(currentPage, Math.max(1, totalPages));
+  currentPage = page;
+  const start = (page - 1) * pageSize;
+  const pageItems = companies.slice(start, start + pageSize);
+
+  document.getElementById('count-display').textContent = companies.length;
+  document.getElementById('page-info').textContent = `第 ${page}/${Math.max(1,totalPages)} 页`;
+  document.getElementById('btn-prev').disabled = page <= 1;
+  document.getElementById('btn-next').disabled = page >= totalPages;
+
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = pageItems.map(c => {
+    const matchClass = c.match_type === '具体对标' ? 'badge-specific' : 'badge-direction';
+    const curatedIcon = c.is_curated == 1 ? '⭐' : '';
+    const boardClass = {'科创板':'badge-star','创业板':'badge-gem','北交所':'badge-board'}[c.board] || 'badge-board';
+    const shortCode = c.stock_code.replace('sh.','').replace('sz.','').replace('bj.','');
+    const website = c.website && c.website !== 'nan' && c.website !== '-'
+      ? `<a href="${c.website.startsWith('http') ? c.website : 'https://' + c.website}" target="_blank" class="website-link" title="${c.website}">🌐</a>`
+      : '';
+    return `<tr>
+      <td style="font-family:monospace;color:var(--accent-cyan)">${shortCode}</td>
+      <td>${curatedIcon}<span class="company-link">${c.stock_name}</span></td>
+      <td><span class="badge ${boardClass}">${c.board||'-'}</span></td>
+      <td><span class="badge-city">${c.industry||'-'}</span></td>
+      <td>${c.city||'-'}</td>
+      <td style="font-size:11px;color:var(--text-muted)">${c.listing_date||'-'}</td>
+      <td style="font-size:11px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.wsw_match||''}">${c.wsw_match ? '<span style="color:var(--accent-green)">'+c.wsw_match+'</span>' : '-'}</td>
+      <td><span class="badge ${matchClass}">${c.match_type||'-'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAll() {
+  const updateTime = allData.exported_at ? new Date(allData.exported_at).toLocaleString('zh-CN') : '--';
+  document.getElementById('update-time').textContent = updateTime;
+  document.getElementById('footer-update').textContent = `数据导出时间：${updateTime}`;
+
+  renderKPIs();
+  renderCharts();
+  renderCityTabs();
+  populateFilters();
+  renderTable();
+}
+
+// Event listeners
+document.getElementById('search-input').addEventListener('input', () => { currentPage=1; renderTable(); });
+document.getElementById('filter-industry').addEventListener('change', () => { currentPage=1; renderTable(); });
+document.getElementById('filter-match').addEventListener('change', () => { currentPage=1; renderTable(); });
+document.getElementById('filter-board').addEventListener('change', () => { currentPage=1; renderTable(); });
+document.getElementById('filter-market').addEventListener('change', () => { currentPage=1; renderTable(); });
+document.getElementById('filter-curated').addEventListener('change', () => { currentPage=1; renderTable(); });
+
+document.getElementById('btn-prev').addEventListener('click', () => { currentPage--; renderTable(); });
+document.getElementById('btn-next').addEventListener('click', () => { currentPage++; renderTable(); });
+
+document.querySelectorAll('thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = 1; }
+    document.querySelectorAll('thead th').forEach(t => t.textContent = t.textContent.replace(' ↑','').replace(' ↓',''));
+    th.textContent += sortDir === 1 ? ' ↑' : ' ↓';
+    currentPage = 1;
+    renderTable();
+  });
+});
+
+window.addEventListener('resize', () => {
+  ['chart-board-pie','chart-market-pie','chart-city-bar','chart-industry-pie','chart-match'].forEach(id => {
+    const dom = document.getElementById(id);
+    if (dom) { const instance = echarts.getInstanceByDom(dom); if (instance) instance.resize(); }
+  });
+});
+
+loadData();
+</script>
+</body>
+</html>
