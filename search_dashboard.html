@@ -53,6 +53,7 @@ tr:hover td { background:#f5f5fa; }
     <input type="text" id="search" placeholder="🔍 搜索代码、名称、行业、城市..." autofocus oninput="filter()">
     <select id="fMarket" onchange="filter()"><option value="">全部市场</option></select>
     <select id="fBoard" onchange="filter()"><option value="">全部板块</option></select>
+    <select id="fProvince" onchange="filter()"><option value="">全部省份</option></select>
     <select id="fIndustry" onchange="filter()"><option value="">全部行业</option></select>
     <select id="fCity" onchange="filter()"><option value="">全部城市</option></select>
     <select id="fCurated" onchange="filter()"><option value="">全部类型</option><option value="1">精选公司</option></select>
@@ -91,6 +92,7 @@ async function init() {
   };
   mkOpt('fMarket', c => c.market);
   mkOpt('fBoard', c => c.board);
+  mkOpt('fProvince', c => c.province);
   mkOpt('fIndustry', c => c.industry);
   mkOpt('fCity', c => c.city);
   filter();
@@ -100,12 +102,14 @@ function filter() {
   const q = document.getElementById('search').value.toLowerCase();
   const mkt = document.getElementById('fMarket').value;
   const brd = document.getElementById('fBoard').value;
+  const prv = document.getElementById('fProvince').value;
   const ind = document.getElementById('fIndustry').value;
   const cty = document.getElementById('fCity').value;
   const cur = document.getElementById('fCurated').value;
   filtered = DATA.filter(c => {
     if (mkt && c.market !== mkt) return false;
     if (brd && c.board !== brd) return false;
+    if (prv && c.province !== prv) return false;
     if (ind && c.industry !== ind) return false;
     if (cty && c.city !== cty) return false;
     if (cur === '1' && !c.curated) return false;
@@ -120,13 +124,15 @@ function filter() {
 
 function renderStats() {
   const curated = filtered.filter(c => c.curated).length;
-  const markets = [...new Set(filtered.map(c => c.market).filter(Boolean))];
-  const boards = [...new Set(filtered.map(c => c.board).filter(Boolean))];
-  const industries = new Set(filtered.map(c => c.industry).filter(Boolean));
+  const markets = [...new Set(filtered.map(c => c.market).filter(b=>b))];
+  const boards = [...new Set(filtered.map(c => c.board).filter(b=>b))];
+  const provinces = new Set(filtered.map(c => c.province).filter(b=>b));
+  const industries = new Set(filtered.map(c => c.industry).filter(b=>b));
   document.getElementById('stats').innerHTML =
     '<div class="stat">精选 <b>'+curated+'</b></div>' +
     '<div class="stat">市场 <b>'+markets.join('+')+'</b></div>' +
     '<div class="stat">板块 <b>'+boards.join('+')+'</b></div>' +
+    '<div class="stat">省份 <b>'+provinces.size+' 个</b></div>' +
     '<div class="stat">行业 <b>'+industries.size+' 个</b></div>';
 }
 
@@ -136,8 +142,8 @@ function sort(col) {
 }
 
 function renderTable() {
-  const keys = ['code','name','market','board','industry','city','date','match'];
-  const labels = ['代码','名称','市场','板块','行业','城市','上市日','匹配'];
+  const keys = ['code','name','province','city','board','industry','date','match'];
+  const labels = ['代码','名称','省份','城市','板块','行业','上市日','匹配'];
   let th = '';
   keys.forEach((k,i) => {
     const cls = sortCol === i ? (sortAsc ? 'sorted asc' : 'sorted') : '';
@@ -158,8 +164,8 @@ function renderTable() {
     if (c.match === '具体对标') extra += '<span class="tag specific">具体</span>';
     else if (c.match === '方向匹配') extra += '<span class="tag direction">方向</span>';
     return '<tr>' +
-      '<td>'+c.code+'</td><td>'+c.name+extra+'</td><td>'+c.market+'</td><td>'+c.board+'</td>' +
-      '<td>'+(c.industry||'-')+'</td><td>'+(c.city||'-')+'</td>' +
+      '<td>'+c.code+'</td><td>'+c.name+extra+'</td><td>'+(c.province||'-')+'</td><td>'+(c.city||'-')+'</td>' +
+      '<td>'+c.board+'</td><td>'+(c.industry||'-')+'</td>' +
       '<td>'+(c.date||'-')+'</td><td>'+(c.match||'-')+'</td></tr>';
   }).join('');
 }
@@ -188,9 +194,9 @@ function setView(v) {
 }
 
 function exportCSV() {
-  const hdr = '代码,名称,市场,板块,行业,城市,上市日期,匹配类型,十五五方向,精选\n';
+  const hdr = '代码,名称,省份,城市,市场,板块,行业,上市日期,匹配类型,十五五方向,精选\n';
   const rows = filtered.map(c => [
-    c.code, c.name, c.market, c.board, (c.industry||''), (c.city||''),
+    c.code, c.name, (c.province||''), (c.city||''), c.market, c.board, (c.industry||''),
     (c.date||''), (c.match||''), (c.wsw||'').replace(/,/g,'，'), c.curated?'是':'否'
   ].map(v => '"'+v+'"').join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+hdr+rows], {type:'text/csv;charset=utf-8'});
