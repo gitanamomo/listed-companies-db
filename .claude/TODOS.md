@@ -1,38 +1,36 @@
 # 上市公司数据项目 · 待办清单
 
-> 最后更新: 2026-06-26
+> 最后更新: 2026-06-27
 
-## ✅ 已完成（本轮）
+## ✅ 本轮完成
 
-- [x] 北交所数据准备 — 重写 download_bj_stocks.py（摆脱东财 API 依赖问题）
-- [x] 城市信息补充准备 — 新建 enrich_cninfo.py（cninfo逐个查询） + enrich_eastmoney.py（东财批量下载）
+- [x] 北交所 333 家入库 → 活跃公司 5,868 家（主板/创业/科创/北交四板齐全）
+- [x] 省份补充 → enrich_eastmoney.py 覆盖率 94%（5,522 家）
+- [x] 城市清洗 → 去除东财概念标签，保留 7 城精选 194 家
 
-## ⏸ 待办（需网络正常）
+## 📊 当前数据
 
-- [ ] **北交所数据导入** — 运行 `python3 download_bj_stocks.py`
-  - 东财 API 间歇性 502/空响应，需等 API 恢复
-  - 预计补充 ~265-333 家北交所公司
+| 指标 | 数值 |
+|------|------|
+| 活跃公司 | 5,868 家 |
+| 上交所 | 2,456 |
+| 深交所 | 3,079 |
+| 北交所 | 333 |
+| 省份覆盖 | 5,522 (94%) |
+| 城市覆盖 | 194 (仅7城精选) |
+| 行业覆盖 | 5,208 (94%) |
 
-- [ ] **城市/省份信息** — 运行 `python3 enrich_eastmoney.py`
-  - 东财批量模式：54 页 × 100 条，2 分钟可完成全量 5.5K
-  - 备用: `python3 enrich_cninfo.py`（逐个查询，~50 分钟）
+## ⏸ 待办
 
-- [ ] **公司详情补全** — cninfo 可补充 full_name/website/main_biz
-
-## 📋 待办（无需网络）
-
-- [ ] **配置 GitHub 远程仓库** — `git remote add origin <url>`
+- [ ] **真实城市补充** — ~5,674 家公司缺城市，可用 cninfo 地址提取或手动录入
+- [ ] **公司详情** — full_name/website/main_biz（cninfo 可批量补）
+- [ ] **配置 GitHub 远程仓库**
 - [ ] **定时自动更新** — cron + refresh + update_check
-- [ ] **RESTful API** — FastAPI 查询接口
-- [ ] **看板增强** — dashboard_offline.html 加入行业筛选
-- [ ] **Obsidian 数据刷新** — `python3 refresh.py` 后复制 obsidian/ 到 vault
+- [ ] **看板增强** — 加入省份筛选、北交所板块
 
 ## 💡 下次启动
 
 ```bash
 cd /Volumes/Gina2T/项目开发/上市公司数据
-# 先测网络
-python3 -c "import requests; r=requests.get('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f12,f14',headers={'User-Agent':'Mozilla/5.0'},timeout=10); print(f'HTTP {r.status_code}')"
-# API通了就：
-python3 enrich_eastmoney.py && python3 download_bj_stocks.py && python3 import_bj_stocks.py && python3 refresh.py
+python3 enrich_eastmoney.py && python3 refresh.py  # 刷新省市数据
 ```
